@@ -1,26 +1,32 @@
 /**
- * S3 Filesystem Demo - Cloud storage with Filesystem Unit
+ * S3 Filesystem Demo - Cloud storage with AsyncFileSystem Unit
  * 
  * This demo shows how to use S3 as a backend for identity and data storage.
  * You'll need valid AWS credentials to run the full demo.
  */
 
-import {  FileSystems } from '../src/filesystem-unit';
-import type { S3FileSystemOptions } from '../src/s3';
-import { S3FileSystem } from '../src/s3';
-import {S3FileSystem as AsyncS3FileSystem} from '../src/promises/s3';
+import { fileURLToPath } from 'url';
+import { AsyncFileSystem } from '@synet/fs';
+import { S3FileSystem, type S3FileSystemOptions } from '../src/s3';
+import path from 'node:path';
+import fs from 'node:fs';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const testConfigPath = path.join(__dirname, '../private/s3.json');
+const testConfig = JSON.parse(fs.readFileSync(testConfigPath, 'utf8'));
+   
 /**
  * Demo configuration - Update with your actual AWS credentials
  */
 const S3_CONFIG: S3FileSystemOptions = {
-  region: '',
-  bucket: '', // Update this!
+  region: testConfig.region, // Default region
+  bucket: testConfig.bucket,
   prefix: 'synet-demo/',               // Optional: acts as root directory
-  accessKeyId: '',   // Or use AWS profile/IAM role
-  secretAccessKey: '',   // Or use AWS profile/IAM role
+  accessKeyId: testConfig.accessKeyId,   // Or use AWS profile/IAM role
+  secretAccessKey: testConfig.secretAccessKey,   // Or use AWS profile/IAM role
 };
-
 
 /**
  * Demo: S3 filesystem for cloud storage
@@ -29,13 +35,12 @@ export async function demonstrateS3Filesystem() {
   console.log('☁️  S3 Filesystem Unit Demo\n');
 
   try {
-    // 1. Create S3 filesystem unit
+    // 1. Create S3 filesystem unit with Unit Architecture
     console.log('1. Creating S3 filesystem unit...');
-    const s3Unit = FileSystems.s3(S3_CONFIG, true); // Always use async for S3
-    const fs = s3Unit.teach();
+    const s3Adapter = new S3FileSystem(S3_CONFIG);
+    const fs = AsyncFileSystem.create({ adapter: s3Adapter });
+
     
-    console.log('   Backend type:', fs.getBackendType());
-    console.log('   Is async:', fs.isAsync());
     console.log('   Bucket:', S3_CONFIG.bucket);
     console.log('   Region:', S3_CONFIG.region);
     console.log('   Prefix:', S3_CONFIG.prefix || '(root)');
@@ -145,24 +150,7 @@ export async function demonstrateS3Filesystem() {
     }
     console.log('');
 
-    // 5. Performance and learning insights
-    console.log('5. S3 performance insights...');
-    const stats = fs.getStats();
-    const learning = s3Unit.learn();
-    const pattern = learning.getUsagePattern();
-    const insights = learning.getPerformanceInsights();
-    
-    console.log('   Operations performed:');
-    console.log(`   - Reads: ${stats.reads}`);
-    console.log(`   - Writes: ${stats.writes}`);
-    console.log(`   - Errors: ${stats.errors}`);
-    console.log(`   - Total: ${pattern.totalOperations}`);
-    console.log('');
-    console.log('   Performance insights:');
-    console.log(`   - Backend: ${insights.backendType}`);
-    console.log(`   - Async: ${insights.isAsync}`);
-    console.log(`   - Recommendation: ${insights.recommendation}`);
-    console.log('');
+
 
     // 6. Configuration scenarios
     console.log('6. S3 configuration scenarios...');
@@ -404,7 +392,7 @@ interface DocumentMetadata {
  * metadata tracking, and efficient retrieval.
  */
 class DocumentStorageService {
-  private fs: S3FileSystem;
+
   private asyncFs: AsyncS3FileSystem;
 
   constructor(config: AppConfig['aws']) {
@@ -412,13 +400,7 @@ class DocumentStorageService {
       throw new Error('AWS configuration required for S3 storage');
     }
 
-    // Sync filesystem for simple operations
-    this.fs = new S3FileSystem({
-      region: config.region,
-      bucket: config.bucket,
-      prefix: config.prefix || 'documents/',
-      // Uses default AWS credentials from environment/IAM role
-    });
+  
 
     // Async filesystem for heavy operations
     this.asyncFs = new AsyncS3FileSystem({
@@ -466,7 +448,7 @@ class DocumentStorageService {
       
       return {
         path: documentPath,
-        url: `https://${this.fs.getBucketInfo().bucket}.s3.${this.fs.getBucketInfo().region}.amazonaws.com/${documentPath}`,
+        url: `https://${this.asyncFs.getBucketInfo().bucket}.s3.${this.asyncFs.getBucketInfo().region}.amazonaws.com/${documentPath}`,
         size: stats.size
       };
 
@@ -580,14 +562,14 @@ class DocumentStorageService {
    * Get storage statistics
    */
   getStorageInfo(): { bucket: string; region: string; prefix: string } {
-    return this.fs.getBucketInfo();
+    return this.asyncFs.getBucketInfo();
   }
 
   /**
    * Clear cache to free memory (useful for long-running services)
    */
   clearCache(): void {
-    this.fs.clearCache();
+    this.clearCache();
     this.asyncFs.clearCache();
     console.log('💾 Storage cache cleared');
   }
@@ -600,10 +582,10 @@ class DocumentStorageService {
  * environment-specific organization and automatic fallbacks.
  */
 class ConfigurationService {
-  private fs: S3FileSystem;
+  private fs: AsyncS3FileSystem;
 
   constructor(bucket: string, region: string, environment: string) {
-    this.fs = new S3FileSystem({
+    this.fs = new AsyncS3FileSystem({
       region,
       bucket,
       prefix: `config/${environment}/`
@@ -617,8 +599,8 @@ class ConfigurationService {
     const configPath = `${name}.json`;
     
     try {
-      if (this.fs.existsSync(configPath)) {
-        const content = this.fs.readFileSync(configPath);
+      if (await this.fs.exists(configPath)) {
+        const content = await this.fs.readFile(configPath);
         const config = JSON.parse(content);
         console.log(`⚙️ Loaded config: ${name}`);
         return { ...defaultValue, ...config };
@@ -642,7 +624,7 @@ class ConfigurationService {
     
     try {
       const content = JSON.stringify(config, null, 2);
-      this.fs.writeFileSync(configPath, content);
+      await this.fs.writeFile(configPath, content);
       console.log(`💾 Saved config: ${name}`);
     } catch (error) {
       throw new Error(`Failed to save config ${name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -652,14 +634,25 @@ class ConfigurationService {
   /**
    * List all configuration files
    */
-  listConfigs(): string[] {
+  async listConfigs(): Promise<string[]> {
     try {
-      return this.fs.readDirSync('.')
+      const files = await this.fs.readDir('.');
+      return files
         .filter(file => file.endsWith('.json'))
         .map(file => file.replace('.json', ''));
     } catch (error) {
       console.warn(`⚠️ Failed to list configs: ${error}`);
       return [];
+    }
+  }
+}
+
+/**
+ * Example Usage
+      .catch(error => {
+        console.warn(`⚠️ Failed to list configs: ${error}`);
+        return [];
+      });
     }
   }
 }
@@ -738,12 +731,12 @@ async function exampleUsage() {
 /**
  * Environment-specific initialization
  */
-function createFileSystemForEnvironment(): S3FileSystem | null {
+function createFileSystemForEnvironment(): AsyncS3FileSystem | null {
   const environment = process.env.NODE_ENV || 'development';
   
   if (environment === 'production' || environment === 'staging') {
     // Use S3 in cloud environments
-    return new S3FileSystem({
+    return new AsyncS3FileSystem({
       region: process.env.AWS_REGION || 'us-east-1',
       bucket: process.env.S3_BUCKET || 'app-storage',
       prefix: `${environment}/`
