@@ -1,21 +1,24 @@
 /**
- * S3 Filesystem Demo - Cloud storage with AsyncFileSystem Unit
+ * S3 Filesystem Demo - Cloud storage with Filesystem Unit
  * 
  * This demo shows how to use S3 as a backend for identity and data storage.
  * You'll need valid AWS credentials to run the full demo.
  */
 
+
 import { fileURLToPath } from 'url';
-import { AsyncFileSystem } from '@synet/fs';
-import { S3FileSystem, type S3FileSystemOptions } from '../src/s3';
+import type { S3FileSystemOptions } from '../src/s3';
+import { 
+  S3FileSystem as AsyncS3FileSystem,
+  createS3FileSystem } from '../src/s3';
 import path from 'node:path';
 import fs from 'node:fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const testConfigPath = path.join(__dirname, '../private/s3.json');
-const testConfig = JSON.parse(fs.readFileSync(testConfigPath, 'utf8'));
+  const testConfigPath = path.join(__dirname, '../private/s3.json');
+    const testConfig = JSON.parse(fs.readFileSync(testConfigPath, 'utf8'));
    
 /**
  * Demo configuration - Update with your actual AWS credentials
@@ -28,6 +31,7 @@ const S3_CONFIG: S3FileSystemOptions = {
   secretAccessKey: testConfig.secretAccessKey,   // Or use AWS profile/IAM role
 };
 
+
 /**
  * Demo: S3 filesystem for cloud storage
  */
@@ -35,10 +39,9 @@ export async function demonstrateS3Filesystem() {
   console.log('☁️  S3 Filesystem Unit Demo\n');
 
   try {
-    // 1. Create S3 filesystem unit with Unit Architecture
+    // 1. Create S3 filesystem unit
     console.log('1. Creating S3 filesystem unit...');
-    const s3Adapter = new S3FileSystem(S3_CONFIG);
-    const fs = AsyncFileSystem.create({ adapter: s3Adapter });
+    const fs = createS3FileSystem(S3_CONFIG); // Always use async for S3
 
     
     console.log('   Bucket:', S3_CONFIG.bucket);
