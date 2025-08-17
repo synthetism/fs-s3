@@ -331,6 +331,17 @@ const s3IA = new S3FileSystem({
 });
 ```
 
+## Related Packages
+
+- **[@synet/fs](https://www.npmjs.com/package/@synet/fs)** - Core filesystem abstraction and Unit Architecture
+- **[@synet/fs-azure](https://www.npmjs.com/package/@synet/fs-azure)** - Azure Blob Storage adapter
+- **[@synet/fs-gcs](https://www.npmjs.com/package/@synet/fs-gcs)** - Google Cloud Storage adapter
+- **[@synet/fs-linode](https://www.npmjs.com/package/@synet/fs-linode)** - Linode Object Storage adapter
+- **[@synet/fs-memory](https://www.npmjs.com/package/@synet/fs-memory)** - In-memory storage adapter
+- **[@synet/fs-r2](https://www.npmjs.com/package/@synet/fs-r2)** - Cloudflare R2 object storage adapter
+- **[@synet/fs-github](https://www.npmjs.com/package/@synet/fs-github)** - Github as storage adapter
+
+
 ## License
 
 MIT
